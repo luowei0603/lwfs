@@ -1,7 +1,7 @@
 lwfs is a net file system based on fuse.
 make
-./lwfs-client
-./lwfs-server -f /mnt/fuse
+./lwfs-server
+./lwfs-client -f /mnt/fuse
 cd /mnt/fuse
 echo aaa>a
 cat a
