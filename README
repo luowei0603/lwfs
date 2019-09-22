@@ -1,0 +1,12 @@
+lwfs is a net file system based on fuse.
+make
+./lwfs-client
+./lwfs-server -f /mnt/fuse
+cd /mnt/fuse
+echo aaa>a
+cat a
+mkdir b
+cd b
+cd ..
+ls
+rm -r *
