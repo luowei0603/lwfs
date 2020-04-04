@@ -2,7 +2,7 @@
 
 CFLAGS  := -Wall -Werror -g 
 LD      := g++
-LDLIBS  := ${LDLIBS} -libverbs -lpthread -lfuse
+LDLIBS  := ${LDLIBS}  -lpthread -lfuse
 
 APPS    := lwfs-client lwfs-server
 
