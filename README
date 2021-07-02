@@ -1,12 +1,9 @@
 lwfs is a net file system based on fuse.
+安装方法：
+Ubuntu：sudo apt-get install libfuse-dev
+编译：
 make
-./lwfs-server
-./lwfs-client -f /mnt/fuse
-cd /mnt/fuse
-echo aaa>a
-cat a
-mkdir b
-cd b
-cd ..
-ls
-rm -r *
+运行：
+./lwfs-server port data_dir(the path you want get in remote)
+./lwfs-client ip port /mnt/fuse -f
+

@@ -51,7 +51,6 @@ struct operation
 };
 ssize_t readn(int fd, void *vptr, size_t n);
 ssize_t writen(int fd, const void *vptr, size_t n);
-int lwfs_connection_client(std::string &ip, int port);
 
 int send_operation_msg(operation &msg, int connfd);
 int recv_operation_msg(operation &msg, int connfd);

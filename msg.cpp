@@ -45,24 +45,6 @@ ssize_t writen(int fd, const void *vptr, size_t n)
 	}
 	return n;
 }
-int lwfs_connection_client(std::string &ip, int port)
-{
-	char *servInetAddr = (char *)ip.c_str();
-	int socketfd;
-	struct sockaddr_in sockaddr;
-	socketfd = socket(AF_INET, SOCK_STREAM, 0);
-	memset(&sockaddr, 0, sizeof(sockaddr));
-	sockaddr.sin_family = AF_INET;
-	sockaddr.sin_port = htons(port);
-	inet_pton(AF_INET, servInetAddr, &sockaddr.sin_addr);
-	if ((connect(socketfd, (struct sockaddr *)&sockaddr, sizeof(sockaddr))) < 0)
-	{
-		printf("connect error %s errno: %d\n", strerror(errno), errno);
-		exit(0);
-	}
-	return socketfd;
-}
-
 
 int send_operation_msg(operation &msg, int connfd)
 {
