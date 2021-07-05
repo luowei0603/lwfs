@@ -51,14 +51,11 @@ int lwfsClient::fuse_write(const char *path, const char *buf, size_t size, off_t
 int lwfsClient::fuse_mknod(const char *path, mode_t mode, dev_t rdev)
 {
 	operation send_msg;
-	send_msg.opcode = OPEN;
+	send_msg.opcode = MKNOD;
 	strcpy(send_msg.file_path, path);
+	send_msg.mode = mode;
+	send_msg.dev = rdev;
 	send_operation_msg(send_msg, connfd_ctrl);
-	operation recv_msg;
-	recv_operation_msg(recv_msg, connfd_ctrl);
-	int fd = recv_msg.fd;
-	std::string filename = std::string(path);
-	file_fd[filename] = fd;
 	return 0;
 }
 
@@ -66,21 +63,22 @@ int lwfsClient::fuse_access(const char *path, int mask)
 {
 	operation send_msg;
 	strcpy(send_msg.file_path, path);
+	send_msg.mode = mask;
 	send_msg.opcode = ACCESS;
 	send_operation_msg(send_msg, connfd_ctrl);
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
 
-	if (recv_msg.file_mode == 5)
-	{
-		return -2;
-	}
-
-	return 0;
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_chmod(const char *path, mode_t mode)
 {
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.mode = mode;
+	send_msg.opcode = CHMOD;
+	send_operation_msg(send_msg, connfd_ctrl);
 	return 0;
 }
 
@@ -172,12 +170,13 @@ int lwfsClient::fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
 
-	//except . & ..
+	int malloc_size = recv_msg.file_num * sizeof(file_info);
+	char *recv_buf = (char *)malloc(malloc_size);
+	readn(connfd_ctrl, recv_buf, malloc_size);
+	file_info *file_list = (file_info *)recv_buf;
 	for (int i = 0; i < recv_msg.file_num; i++)
 	{
-
-		st.st_mode = recv_msg.st_mode[i];
-		filler(buf, recv_msg.d_name[i], &st, 0);
+		filler(buf, file_list[i].d_name, &file_list[i].file_stat, 0);
 	}
 
 	return 0;
@@ -194,28 +193,11 @@ int lwfsClient::fuse_getattr(const char *path, struct stat *st)
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
 
-	if (recv_msg.file_mode == 5)
+	memcpy(st, &recv_msg.file_stat, sizeof(struct stat));
+	if (recv_msg.ret != 0)
 	{
 		return -2;
 	}
-	if (recv_msg.file_mode == 1)
-	{
-
-		st->st_mode = 0755 | S_IFDIR;
-		st->st_size = 4096;
-	}
-	else if (recv_msg.file_mode == 0)
-	{
-		st->st_mode = 0644 | S_IFREG;
-		st->st_size = recv_msg.i_size;
-	}
-	st->st_nlink = 1;
-	st->st_uid = 0;
-	st->st_gid = 0;
-	st->st_rdev = 0;
-	st->st_atime = 0;
-	st->st_mtime = 0;
-	st->st_ctime = 0;
 
 	return 0;
 }
@@ -247,7 +229,6 @@ int lwfsClient::Init()
 	fuse_oper.access = fuse_access;
 	fuse_oper.chmod = fuse_chmod;
 	fuse_oper.readdir = fuse_readdir;
-
 	fuse_oper.mkdir = fuse_mkdir;
 	fuse_oper.unlink = fuse_unlink;
 	fuse_oper.rmdir = fuse_rmdir;

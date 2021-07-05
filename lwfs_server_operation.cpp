@@ -1,228 +1,200 @@
-
 #include "lwfs_server_operation.h"
+#include <sstream>
 
 int lwfsServer::port = 0;
 std::string lwfsServer::data_dir = "";
 std::map<std::string, int> lwfsServer::file_fd;
+operation_func lwfsServer::op_map[OP_NUM];
+int lwfsServer::ctrl_fd;
+int lwfsServer::data_fd;
 
-int lwfsServer::Open(int connfd, const char *_path)
+int lwfsServer::Open(const operation &recv_msg)
 {
     std::string path;
-    PATHADAPT(path, _path);
-    int fd = open(path.c_str(), O_CREAT | O_RDWR, 0777);
+    PATHADAPT(path, recv_msg.file_path);
+    int fd = open(path.c_str(), O_CREAT | O_RDWR, recv_msg.mode);
     operation send_msg;
     send_msg.fd = fd;
-    send_operation_msg(send_msg, connfd);
+    send_operation_msg(send_msg, ctrl_fd);
     file_fd[path] = fd;
-    return fd;
+    return 0;
 }
 
-int lwfsServer::Listdir(int connfd, const char *_path)
+int lwfsServer::Listdir(const operation &recv_msg)
 {
     std::string path;
-    PATHADAPT(path, _path);
+    PATHADAPT(path, recv_msg.file_path);
     operation send_msg;
     DIR *dp;
     struct dirent *dirp;
+    const int malloc_num = 20;
+    file_info *file_list = NULL;
     dp = opendir(path.c_str());
     if (dp == NULL)
     {
         printf("opendir error  %s \n", strerror(errno));
         return -1;
     }
-    int nums = 0;
+    int num = 0;
     while ((dirp = readdir(dp)) != NULL)
     {
-        struct stat tmp;
-        stat(dirp->d_name, &tmp);
-        if (dirp->d_name[0] == '.')
-            continue;
-        strcpy(send_msg.d_name[nums], dirp->d_name);
-        send_msg.st_mode[nums] = tmp.st_mode;
-        send_msg.st_size[nums] = tmp.st_size;
-        nums += 1;
+        if (num % malloc_num == 0) {
+            file_list = (file_info *)realloc(file_list, (num + malloc_num) * sizeof(file_info));
+        }
+        stat(dirp->d_name, &file_list[num].file_stat);
+        strcpy(file_list[num].d_name, dirp->d_name);
+        num++;
     }
-    int i;
-    // for (i = 0; i < nums; i++)
-    // {
-    //     printf("name=%s\tmode=%d\tsize=%d\n", send_msg.d_name[i], send_msg.st_mode[i], send_msg.st_size[i]);
-    // }
+
     closedir(dp);
     send_msg.opcode = LISTDIR;
-    send_msg.file_num = nums;
-    send_operation_msg(send_msg, connfd);
-    return nums;
-}
-
-int lwfsServer::CreateDirector(int connfd, const char *_path, mode_t mode)
-{
-    std::string path;
-    PATHADAPT(path, _path);
-    printf("call mkdirs (path : %s , mode : %o)\n", path, mode);
-    mkdir(path.c_str(), 0777);
+    send_msg.file_num = num;
+    send_operation_msg(send_msg, ctrl_fd);
+    writen(ctrl_fd, (char *)file_list, num * sizeof(file_info));
+    free(file_list);
     return 0;
 }
 
-int lwfsServer::Rename(int connfd, const char *from, const char *to)
+int lwfsServer::CreateDirector(const operation &recv_msg)
+{
+    std::string path;
+    PATHADAPT(path, recv_msg.file_path);
+    mkdir(path.c_str(), recv_msg.mode);
+    return 0;
+}
+
+int lwfsServer::Rename(const operation &recv_msg)
 {
     std::string oldpath;
     std::string newpath;
-    PATHADAPT(oldpath, from);
-    PATHADAPT(newpath, to);
-    int rc;
-
-    rc = rename(oldpath.c_str(), newpath.c_str());
-    if (rc != 0)
-    {
-        printf("rename error\n");
-        return 0;
-    }
-    return 1;
+    PATHADAPT(oldpath, recv_msg.file_path);
+    PATHADAPT(newpath, recv_msg.new_file_path);
+    return rename(oldpath.c_str(), newpath.c_str());
 }
 
-int lwfsServer::Rmdir(int connfd, const char *_path)
+int lwfsServer::Rmdir(const operation &recv_msg)
 {
     std::string newpath;
-    PATHADAPT(newpath, _path);
+    PATHADAPT(newpath, recv_msg.file_path);
     int ret;
-    ret = rmdir(newpath.c_str());
-    if (ret < 0)
-    {
-        printf("rmdir error\n");
-        return -1;
-    }
-    return 0;
+    return rmdir(newpath.c_str());
 }
 
-int lwfsServer::Delete(int connfd, const char *_path)
+int lwfsServer::Delete(const operation &recv_msg)
 {
     std::string path;
-    PATHADAPT(path, _path);
+    PATHADAPT(path, recv_msg.file_path);
     int ret;
-    ret = remove(path.c_str());
-    if (ret < 0)
-    {
-        printf("remove file error\n");
-        return -1;
-    }
-    return 0;
+    return remove(path.c_str());
 }
 
-int lwfsServer::Getattr(int connfd, const char *_path)
+int lwfsServer::Getattr(const operation &recv_msg)
 {
     std::string path;
-    PATHADAPT(path, _path);
-    struct stat buf;
-    int mask;
+    PATHADAPT(path, recv_msg.file_path);
     operation send_msg;
-    if (stat(path.c_str(), &buf) == 0)
-    {
-        mask = buf.st_mode & S_IFMT;
-        if (mask == S_IFDIR)
-            send_msg.file_mode = 1;
-        else if (mask == S_IFREG)
-            send_msg.file_mode = 0;
-        send_msg.i_size = buf.st_size;
-    }
-    else
-    {
-        send_msg.file_mode = 5;
-    }
+    send_msg.ret = stat(path.c_str(), &send_msg.file_stat);
     send_msg.opcode = GETATTR;
-    send_operation_msg(send_msg, connfd);
-    return 0;
+    send_operation_msg(send_msg, ctrl_fd);
+    return send_msg.ret;
 }
 
-int lwfsServer::Access(int connfd, const char *_path)
+int lwfsServer::Access(const operation &recv_msg)
 {
     std::string path;
-    PATHADAPT(path, _path);
-    struct stat buf;
-    int mask;
+    PATHADAPT(path, recv_msg.file_path);
     operation send_msg;
-    if (stat(path.c_str(), &buf) == 0)
-    {
-        mask = buf.st_mode & S_IFMT;
-        if (mask == S_IFDIR)
-            send_msg.file_mode = 1;
-        else if (mask == S_IFREG)
-            send_msg.file_mode = 0;
-        send_msg.i_size = buf.st_size;
-    }
-    else
-    {
-        send_msg.file_mode = 5;
-    }
+    send_msg.ret = access(path.c_str(), recv_msg.mode);
     send_msg.opcode = ACCESS;
-    send_operation_msg(send_msg, connfd);
+    send_operation_msg(send_msg, ctrl_fd);
     return 0;
 }
 
-void *lwfsServer::handle_conn_ctrl(void *args)
+int lwfsServer::Close(const operation &recv_msg)
 {
+    close(recv_msg.fd);
+    return 0;
+}
 
+int lwfsServer::Chmod(const operation &recv_msg)
+{
+    std::string path;
+    PATHADAPT(path, recv_msg.file_path);
+    chmod(path.c_str(), recv_msg.mode);
+    return 0;
+}
+
+int lwfsServer::Mknod(const operation &recv_msg)
+{
+    std::string path;
+    PATHADAPT(path, recv_msg.file_path);
+    mknod(path.c_str(), recv_msg.mode, recv_msg.dev);
+    return 0;
+}
+
+int lwfsServer::Read(const operation &recv_msg)
+{
+    char *buf = (char *)malloc(recv_msg.size);
+    read(recv_msg.fd, buf, recv_msg.size);
+    writen(data_fd, buf, recv_msg.size);
+    free(buf);
+    return 0;
+}
+
+int lwfsServer::Write(const operation &recv_msg)
+{
+    char *buf = (char *)malloc(recv_msg.size);
+    readn(data_fd, buf, recv_msg.size);
+    write(recv_msg.fd, buf, recv_msg.size);
+    free(buf);
+    return 0;
+}
+
+void *lwfsServer::handle_conn(void *args)
+{
     int connfd = *(int *)args;
     while (1)
     {
         operation recv_msg;
         recv_operation_msg(recv_msg, connfd);
-        switch (recv_msg.opcode)
+
+        if (recv_msg.opcode < 0 || recv_msg.opcode >= OP_NUM)
         {
-        case MKDIR:
-            CreateDirector(connfd, recv_msg.file_path, 0);
-            break;
-        case RENAME:
-            Rename(connfd, recv_msg.file_path, recv_msg.new_file_path);
-            break;
-        case LISTDIR:
-            Listdir(connfd, recv_msg.file_path);
-            break;
-        case GETATTR:
-            Getattr(connfd, recv_msg.file_path);
-            break;
-        case ACCESS:
-            Access(connfd, recv_msg.file_path);
-            break;
-        case OPEN:
-            Open(connfd, recv_msg.file_path);
-            break;
-        case DELETE:
-            Delete(connfd, recv_msg.file_path);
-        default:
-            break;
+            printf("-----------\nerror opcode\n");
+        }
+        else
+        {
+            printf("-------------\nnow exec: %s\n", op_map[recv_msg.opcode].comments.c_str());
+            int ret = op_map[recv_msg.opcode].func(recv_msg);
+            if (ret < 0)
+            {
+                printf("exec failed: %s\n", op_map[recv_msg.opcode].comments.c_str());
+            }
         }
     }
 }
 
-void *lwfsServer::handle_conn_data(void *args)
+int lwfsServer::Init()
 {
-    int connfd = *(int *)args;
-    while (1)
-    {
-        operation recv_msg;
-        recv_operation_msg(recv_msg, connfd);
-        if (recv_msg.opcode == READ)
-        {
-            char *buf = (char *)malloc(recv_msg.size);
-            read(recv_msg.fd, buf, recv_msg.size);
-            writen(connfd, buf, recv_msg.size);
-        }
-        if (recv_msg.opcode == WRITE)
-        {
-            char *buf = (char *)malloc(recv_msg.size);
-            readn(connfd, buf, recv_msg.size);
-            std::cout << buf << std::endl;
-            write(recv_msg.fd, buf, recv_msg.size);
-        }
-    }
+    op_map[MKDIR] = {CreateDirector, "mkdir"};
+    op_map[RENAME] = {Rename, "rename"};
+    op_map[OPEN] = {Open, "open"};
+    op_map[CLOSE] = {Close, "close"};
+    op_map[READ] = {Read, "read"};
+    op_map[DELETE] = {Delete, "delete"};
+    op_map[WRITE] = {Write, "write"};
+    op_map[LISTDIR] = {Listdir, "listdir"};
+    op_map[GETATTR] = {Getattr, "getattr"};
+    op_map[ACCESS] = {Access, "access"};
+    op_map[RENAMEDIR] = {Rename, "renamedir"};
+    op_map[RMDIR] = {Delete, "rmdir"};
+    op_map[CHMOD] = {Chmod, "chmod"};
+    op_map[MKNOD] = {Mknod, "mknode"};
 }
 
 int lwfsServer::Run()
 {
-    mkdir(data_dir.c_str(), 0777);
-
-    int listenfd, connfd_ctrl, connfd_data;
-    pid_t childpid;
+    int listenfd;
     socklen_t clilen;
     struct sockaddr_in cliaddr, servaddr;
 
@@ -244,13 +216,13 @@ int lwfsServer::Run()
     while (1)
     {
         // connection for handle ctrl msg
-        connfd_ctrl = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
+        ctrl_fd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
         pthread_t ctrl;
-        pthread_create(&ctrl, NULL, handle_conn_ctrl, &connfd_ctrl);
+        pthread_create(&ctrl, NULL, handle_conn, &ctrl_fd);
         // connection for handle data msg
-        connfd_data = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
+        data_fd = accept(listenfd, (struct sockaddr *)&cliaddr, &clilen);
         pthread_t data;
-        pthread_create(&data, NULL, handle_conn_data, &connfd_data);
+        pthread_create(&data, NULL, handle_conn, &data_fd);
     }
     close(listenfd);
     return 0;

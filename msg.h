@@ -20,7 +20,7 @@
 #include <map>
 enum type
 {
-    MKDIR,
+    MKDIR = 0,
     RENAME,
     OPEN,
     CLOSE,
@@ -31,7 +31,10 @@ enum type
     GETATTR,
     ACCESS,
     RENAMEDIR,
-    RMDIR
+    RMDIR,
+    CHMOD,
+    MKNOD,
+    OP_NUM,
 };
 struct operation
 {
@@ -40,15 +43,20 @@ struct operation
     long size;
     char file_path[255];
     char new_file_path[255];
+    struct stat file_stat;
     int fd;
-    int file_mode;
-    long i_size;
-    char d_name[100][255];
-    int st_mode[100];
-    long st_size[100];
+    int mode;
+    dev_t dev;
     int file_num;
     int ret;
 };
+
+struct file_info
+{
+    char d_name[255];
+    struct stat file_stat;
+};
+
 ssize_t readn(int fd, void *vptr, size_t n);
 ssize_t writen(int fd, const void *vptr, size_t n);
 

@@ -10,6 +10,7 @@ int main(int argc, char *argv[])
 	int port = atol(argv[1]);
 	std::string data_dir = std::string(argv[2]);
 	lwfsServer *s = new lwfsServer(data_dir, port);
+	s->Init();
 	s->Run();
 	return 0;
 }
