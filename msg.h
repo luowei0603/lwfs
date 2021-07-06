@@ -34,6 +34,7 @@ enum type
     RMDIR,
     CHMOD,
     MKNOD,
+    TRUNCATE,
     OP_NUM,
 };
 struct operation

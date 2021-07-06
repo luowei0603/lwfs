@@ -4,7 +4,7 @@
 int lwfsServer::port = 0;
 std::string lwfsServer::data_dir = "";
 std::map<std::string, int> lwfsServer::file_fd;
-operation_func lwfsServer::op_map[OP_NUM];
+operation_func lwfsServer::op_table[OP_NUM];
 int lwfsServer::ctrl_fd;
 int lwfsServer::data_fd;
 
@@ -17,7 +17,7 @@ int lwfsServer::Open(const operation &recv_msg)
     send_msg.fd = fd;
     send_operation_msg(send_msg, ctrl_fd);
     file_fd[path] = fd;
-    return 0;
+    return fd;
 }
 
 int lwfsServer::Listdir(const operation &recv_msg)
@@ -58,34 +58,52 @@ int lwfsServer::Listdir(const operation &recv_msg)
 int lwfsServer::CreateDirector(const operation &recv_msg)
 {
     std::string path;
+    operation send_msg;
     PATHADAPT(path, recv_msg.file_path);
-    mkdir(path.c_str(), recv_msg.mode);
-    return 0;
+    send_msg.ret = mkdir(path.c_str(), recv_msg.mode);
+
+    send_msg.opcode = MKDIR;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Rename(const operation &recv_msg)
 {
     std::string oldpath;
     std::string newpath;
+    operation send_msg;
     PATHADAPT(oldpath, recv_msg.file_path);
     PATHADAPT(newpath, recv_msg.new_file_path);
-    return rename(oldpath.c_str(), newpath.c_str());
+    send_msg.ret = rename(oldpath.c_str(), newpath.c_str());
+    send_msg.opcode = RENAME;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Rmdir(const operation &recv_msg)
 {
     std::string newpath;
+    operation send_msg;
     PATHADAPT(newpath, recv_msg.file_path);
-    int ret;
-    return rmdir(newpath.c_str());
+    send_msg.ret = rmdir(newpath.c_str());
+    send_msg.opcode = RMDIR;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Delete(const operation &recv_msg)
 {
     std::string path;
+    operation send_msg;
     PATHADAPT(path, recv_msg.file_path);
-    int ret;
-    return remove(path.c_str());
+    send_msg.ret =  remove(path.c_str());
+    send_msg.opcode = DELETE;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Getattr(const operation &recv_msg)
@@ -96,6 +114,7 @@ int lwfsServer::Getattr(const operation &recv_msg)
     send_msg.ret = stat(path.c_str(), &send_msg.file_stat);
     send_msg.opcode = GETATTR;
     send_operation_msg(send_msg, ctrl_fd);
+
     return send_msg.ret;
 }
 
@@ -107,7 +126,8 @@ int lwfsServer::Access(const operation &recv_msg)
     send_msg.ret = access(path.c_str(), recv_msg.mode);
     send_msg.opcode = ACCESS;
     send_operation_msg(send_msg, ctrl_fd);
-    return 0;
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Close(const operation &recv_msg)
@@ -119,17 +139,37 @@ int lwfsServer::Close(const operation &recv_msg)
 int lwfsServer::Chmod(const operation &recv_msg)
 {
     std::string path;
+    operation send_msg;
     PATHADAPT(path, recv_msg.file_path);
-    chmod(path.c_str(), recv_msg.mode);
-    return 0;
+    send_msg.ret = chmod(path.c_str(), recv_msg.mode);
+    send_msg.opcode = CHMOD;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Mknod(const operation &recv_msg)
 {
     std::string path;
+    operation send_msg;
     PATHADAPT(path, recv_msg.file_path);
-    mknod(path.c_str(), recv_msg.mode, recv_msg.dev);
-    return 0;
+    send_msg.ret = mknod(path.c_str(), recv_msg.mode, recv_msg.dev);
+    send_msg.opcode = MKNOD;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
+int lwfsServer::Truncate(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+    send_msg.ret = truncate(path.c_str(), recv_msg.size);
+    send_msg.opcode = TRUNCATE;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 int lwfsServer::Read(const operation &recv_msg)
@@ -144,9 +184,13 @@ int lwfsServer::Read(const operation &recv_msg)
 int lwfsServer::Write(const operation &recv_msg)
 {
     char *buf = (char *)malloc(recv_msg.size);
+    operation send_msg;
     readn(data_fd, buf, recv_msg.size);
-    write(recv_msg.fd, buf, recv_msg.size);
+    send_msg.size = write(recv_msg.fd, buf, recv_msg.size);
     free(buf);
+    send_msg.opcode = WRITE;
+    send_operation_msg(send_msg, ctrl_fd);
+
     return 0;
 }
 
@@ -164,11 +208,11 @@ void *lwfsServer::handle_conn(void *args)
         }
         else
         {
-            printf("-------------\nnow exec: %s\n", op_map[recv_msg.opcode].comments.c_str());
-            int ret = op_map[recv_msg.opcode].func(recv_msg);
+            printf("-------------\nnow exec: %s\n", op_table[recv_msg.opcode].comments.c_str());
+            int ret = op_table[recv_msg.opcode].func(recv_msg);
             if (ret < 0)
             {
-                printf("exec failed: %s\n", op_map[recv_msg.opcode].comments.c_str());
+                printf("exec failed: %s\n", op_table[recv_msg.opcode].comments.c_str());
             }
         }
     }
@@ -176,20 +220,21 @@ void *lwfsServer::handle_conn(void *args)
 
 int lwfsServer::Init()
 {
-    op_map[MKDIR] = {CreateDirector, "mkdir"};
-    op_map[RENAME] = {Rename, "rename"};
-    op_map[OPEN] = {Open, "open"};
-    op_map[CLOSE] = {Close, "close"};
-    op_map[READ] = {Read, "read"};
-    op_map[DELETE] = {Delete, "delete"};
-    op_map[WRITE] = {Write, "write"};
-    op_map[LISTDIR] = {Listdir, "listdir"};
-    op_map[GETATTR] = {Getattr, "getattr"};
-    op_map[ACCESS] = {Access, "access"};
-    op_map[RENAMEDIR] = {Rename, "renamedir"};
-    op_map[RMDIR] = {Delete, "rmdir"};
-    op_map[CHMOD] = {Chmod, "chmod"};
-    op_map[MKNOD] = {Mknod, "mknode"};
+    op_table[MKDIR] = {CreateDirector, "mkdir"};
+    op_table[RENAME] = {Rename, "rename"};
+    op_table[OPEN] = {Open, "open"};
+    op_table[CLOSE] = {Close, "close"};
+    op_table[READ] = {Read, "read"};
+    op_table[DELETE] = {Delete, "delete"};
+    op_table[WRITE] = {Write, "write"};
+    op_table[LISTDIR] = {Listdir, "listdir"};
+    op_table[GETATTR] = {Getattr, "getattr"};
+    op_table[ACCESS] = {Access, "access"};
+    op_table[RENAMEDIR] = {Rename, "renamedir"};
+    op_table[RMDIR] = {Delete, "rmdir"};
+    op_table[CHMOD] = {Chmod, "chmod"};
+    op_table[MKNOD] = {Mknod, "mknode"};
+    op_table[TRUNCATE] = {Truncate, "truncate"};
 }
 
 int lwfsServer::Run()

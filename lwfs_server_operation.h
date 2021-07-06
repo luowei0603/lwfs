@@ -24,7 +24,7 @@ public:
     static std::map<std::string, int> file_fd;
     static int ctrl_fd;
     static int data_fd;
-    static operation_func op_map[OP_NUM];
+    static operation_func op_table[OP_NUM];
 
 public:
     lwfsServer(std::string &_data_dir, int _port)
@@ -49,6 +49,7 @@ public:
     static int Mknod(const operation &recv_msg);
     static int Write(const operation &recv_msg);
     static int Read(const operation &recv_msg);
+    static int Truncate(const operation &recv_msg);
     static void *handle_conn(void *args);
 };
 

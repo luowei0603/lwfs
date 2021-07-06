@@ -45,7 +45,9 @@ int lwfsClient::fuse_write(const char *path, const char *buf, size_t size, off_t
 	send_operation_msg(send_msg, connfd_data);
 	writen(connfd_data, buf, size);
 
-	return size;
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.size;
 }
 
 int lwfsClient::fuse_mknod(const char *path, mode_t mode, dev_t rdev)
@@ -56,7 +58,9 @@ int lwfsClient::fuse_mknod(const char *path, mode_t mode, dev_t rdev)
 	send_msg.mode = mode;
 	send_msg.dev = rdev;
 	send_operation_msg(send_msg, connfd_ctrl);
-	return 0;
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_access(const char *path, int mask)
@@ -68,7 +72,6 @@ int lwfsClient::fuse_access(const char *path, int mask)
 	send_operation_msg(send_msg, connfd_ctrl);
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
-
 	return recv_msg.ret;
 }
 
@@ -79,7 +82,9 @@ int lwfsClient::fuse_chmod(const char *path, mode_t mode)
 	send_msg.mode = mode;
 	send_msg.opcode = CHMOD;
 	send_operation_msg(send_msg, connfd_ctrl);
-	return 0;
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_mkdir(const char *path, mode_t mode)
@@ -88,12 +93,9 @@ int lwfsClient::fuse_mkdir(const char *path, mode_t mode)
 	strcpy(send_msg.file_path, path);
 	send_msg.opcode = MKDIR;
 	send_operation_msg(send_msg, connfd_ctrl);
-	// operation recv_msg;
-	// recv_operation_msg(recv_msg,connfd_ctrl);
-	// if(recv_msg.ret==-1){
-	// 	std::cout<<"createDirectory error"<<std::endl;
-	// }
-	return 0;
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_rmdir(const char *path)
@@ -102,37 +104,35 @@ int lwfsClient::fuse_rmdir(const char *path)
 	strcpy(send_msg.file_path, path);
 	send_msg.opcode = DELETE;
 	send_operation_msg(send_msg, connfd_ctrl);
-	// operation recv_msg;
-	// recv_operation_msg(recv_msg,connfd_ctrl);
-	// if(recv_msg.ret==-1){
-	// 	std::cout<<"delete error"<<std::endl;
-	// }
-	return 0;
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_rename(const char *from, const char *to)
 {
-	int type;
-	long size;
 	operation send_msg;
 	strcpy(send_msg.file_path, from);
 	strcpy(send_msg.new_file_path, to);
 	send_msg.opcode = RENAME;
 	send_operation_msg(send_msg, connfd_ctrl);
-	// operation recv_msg;
-	// recv_operation_msg(recv_msg,connfd_ctrl);
-	// if(recv_msg.ret==-1){
-	// 	std::cout<<"rename error"<<std::endl;
-	// }
-
-	return 0;
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_truncate(const char *path, off_t size)
 {
-
-	return 0;
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = TRUNCATE;
+	send_msg.size = size;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	return recv_msg.ret;
 }
+
 int lwfsClient::fuse_statfs(const char *path, struct statvfs *stbuf)
 {
 
@@ -145,13 +145,10 @@ int lwfsClient::fuse_unlink(const char *path)
 	strcpy(send_msg.file_path, path);
 	send_msg.opcode = DELETE;
 	send_operation_msg(send_msg, connfd_ctrl);
-	// operation recv_msg;
-	// recv_operation_msg(recv_msg,connfd);
-	// if(recv_msg.ret==-1){
-	// 	std::cout<<"delete error"<<std::endl;
-	// }
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
 
-	return 0;
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_release(const char *path, struct fuse_file_info *fi)
@@ -178,6 +175,7 @@ int lwfsClient::fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler
 	{
 		filler(buf, file_list[i].d_name, &file_list[i].file_stat, 0);
 	}
+	free(recv_buf);
 
 	return 0;
 }
