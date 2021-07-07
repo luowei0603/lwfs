@@ -36,11 +36,12 @@ private:
     static int fuse_rmdir(const char *path);
     static int fuse_rename(const char *from, const char *to);
     static int fuse_truncate(const char *path, off_t size);
-    static int fuse_statfs(const char *path, struct statvfs *stbuf);
     static int fuse_unlink(const char *path);
-    static int fuse_release(const char *path, struct fuse_file_info *fi);
     static int fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                             off_t offset, struct fuse_file_info *fi);
     static int fuse_getattr(const char *path, struct stat *st);
+    static int fuse_symlink(const char * oldpath, const char * newpath);
+    static int fuse_link(const char * oldpath, const char * newpath);
+    static int fuse_readlink(const char * path, char * buf, size_t bufsize);
 };
 #endif

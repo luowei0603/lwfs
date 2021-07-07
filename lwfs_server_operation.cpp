@@ -194,6 +194,57 @@ int lwfsServer::Write(const operation &recv_msg)
     return 0;
 }
 
+int lwfsServer::Symlink(const operation &recv_msg)
+{
+    std::string oldpath;
+    std::string newpath;
+    operation send_msg;
+    PATHADAPT(oldpath, recv_msg.file_path);
+    PATHADAPT(newpath, recv_msg.new_file_path);
+    send_msg.ret = symlink(oldpath.c_str(), newpath.c_str());
+    send_msg.opcode = SYMLINK;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
+int lwfsServer::Link(const operation &recv_msg)
+{
+    std::string oldpath;
+    std::string newpath;
+    operation send_msg;
+    PATHADAPT(oldpath, recv_msg.file_path);
+    PATHADAPT(newpath, recv_msg.new_file_path);
+    send_msg.ret = link(oldpath.c_str(), newpath.c_str());
+    send_msg.opcode = LINK;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
+int lwfsServer::Unlink(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+    send_msg.ret = unlink(path.c_str());
+    send_msg.opcode = UNLINK;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
+int lwfsServer::Readlink(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+    send_msg.size = readlink(path.c_str(), send_msg.new_file_path, 255);
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.size;
+}
+
 void *lwfsServer::handle_conn(void *args)
 {
     int connfd = *(int *)args;
@@ -235,6 +286,10 @@ int lwfsServer::Init()
     op_table[CHMOD] = {Chmod, "chmod"};
     op_table[MKNOD] = {Mknod, "mknode"};
     op_table[TRUNCATE] = {Truncate, "truncate"};
+    op_table[SYMLINK] = {Symlink, "symlink"};
+    op_table[LINK] = {Link, "hardlink"};
+    op_table[UNLINK] = {Unlink, "unlink"};
+    op_table[READLINK] = {Readlink, "readlink"};
 }
 
 int lwfsServer::Run()

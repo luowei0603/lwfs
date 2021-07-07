@@ -133,27 +133,16 @@ int lwfsClient::fuse_truncate(const char *path, off_t size)
 	return recv_msg.ret;
 }
 
-int lwfsClient::fuse_statfs(const char *path, struct statvfs *stbuf)
-{
-
-	return 0;
-}
 int lwfsClient::fuse_unlink(const char *path)
 {
-
 	operation send_msg;
 	strcpy(send_msg.file_path, path);
-	send_msg.opcode = DELETE;
+	send_msg.opcode = UNLINK;
 	send_operation_msg(send_msg, connfd_ctrl);
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
 
 	return recv_msg.ret;
-}
-
-int lwfsClient::fuse_release(const char *path, struct fuse_file_info *fi)
-{
-	return 0;
 }
 
 int lwfsClient::fuse_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
@@ -200,6 +189,45 @@ int lwfsClient::fuse_getattr(const char *path, struct stat *st)
 	return 0;
 }
 
+int lwfsClient::fuse_symlink(const char * oldpath, const char * newpath)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, oldpath);
+	strcpy(send_msg.new_file_path, newpath);
+	send_msg.opcode = SYMLINK;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+
+	return 0;
+}
+
+int lwfsClient::fuse_readlink(const char * path, char * buf, size_t bufsize)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = READLINK;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	memcpy(buf, recv_msg.new_file_path, recv_msg.size);
+
+	return recv_msg.size;
+}
+
+int lwfsClient::fuse_link(const char * oldpath, const char * newpath)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, oldpath);
+	strcpy(send_msg.new_file_path, newpath);
+	send_msg.opcode = LINK;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+
+	return recv_msg.ret;
+}
+
 int lwfsClient::build_connection_with_server()
 {
 	char *servInetAddr = (char *)server_ip.c_str();
@@ -231,10 +259,11 @@ int lwfsClient::Init()
 	fuse_oper.unlink = fuse_unlink;
 	fuse_oper.rmdir = fuse_rmdir;
 	fuse_oper.rename = fuse_rename;
-	fuse_oper.release = fuse_release;
 	fuse_oper.read = fuse_read;
 	fuse_oper.truncate = fuse_truncate;
-	fuse_oper.statfs = fuse_statfs;
+	fuse_oper.symlink = fuse_symlink;
+	fuse_oper.link = fuse_link;
+	fuse_oper.readlink = fuse_readlink;
 }
 
 int lwfsClient::Run(int argc, char *argv[])

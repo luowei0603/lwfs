@@ -50,6 +50,10 @@ public:
     static int Write(const operation &recv_msg);
     static int Read(const operation &recv_msg);
     static int Truncate(const operation &recv_msg);
+    static int Symlink(const operation &recv_msg);
+    static int Link(const operation &recv_msg);
+    static int Unlink(const operation &recv_msg);
+    static int Readlink(const operation &recv_msg);
     static void *handle_conn(void *args);
 };
 

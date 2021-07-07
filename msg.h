@@ -35,6 +35,10 @@ enum type
     CHMOD,
     MKNOD,
     TRUNCATE,
+    SYMLINK,
+    LINK,
+    UNLINK,
+    READLINK,
     OP_NUM,
 };
 struct operation
