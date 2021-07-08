@@ -43,5 +43,9 @@ private:
     static int fuse_symlink(const char * oldpath, const char * newpath);
     static int fuse_link(const char * oldpath, const char * newpath);
     static int fuse_readlink(const char * path, char * buf, size_t bufsize);
+    static int fuse_setxattr(const char *path, const char *key, const char *value, size_t size, int flag);
+    static int fuse_getxattr(const char *path, const char *key, char *value, size_t size);
+    static int fuse_listxattr(const char *path, char *list, size_t size);
+    static int fuse_removexattr(const char *path, const char *key);
 };
 #endif

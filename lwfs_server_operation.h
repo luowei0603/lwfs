@@ -6,7 +6,7 @@
 #define PATHADAPT(path, origin_path)                                                                  \
     do                                                                                                \
     {                                                                                                 \
-        path = data_dir + std::string(origin_path);                                                   \
+        path = data_dir + (origin_path[0] == '/' ? "" : "/") + std::string(origin_path);              \
         printf("[%s: %s: %d]: %s ==> %s\n", __FILE__, __func__, __LINE__, origin_path, path.c_str()); \
     } while (0)
 
@@ -54,6 +54,10 @@ public:
     static int Link(const operation &recv_msg);
     static int Unlink(const operation &recv_msg);
     static int Readlink(const operation &recv_msg);
+    static int Setxattr(const operation &recv_msg);
+    static int Getxattr(const operation &recv_msg);
+    static int Listxattr(const operation &recv_msg);
+    static int Removexattr(const operation &recv_msg);
     static void *handle_conn(void *args);
 };
 

@@ -39,8 +39,13 @@ enum type
     LINK,
     UNLINK,
     READLINK,
+    SETXATTR,
+    GETXATTR,
+    LISTXATTR,
+    REMOVEXATTR,
     OP_NUM,
 };
+
 struct operation
 {
     type opcode;
@@ -53,6 +58,8 @@ struct operation
     int mode;
     dev_t dev;
     int file_num;
+    char xattr_key[255];
+    char xattr_value[255];
     int ret;
 };
 

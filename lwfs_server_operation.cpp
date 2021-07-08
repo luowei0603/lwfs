@@ -1,5 +1,6 @@
 #include "lwfs_server_operation.h"
 #include <sstream>
+#include <sys/xattr.h>
 
 int lwfsServer::port = 0;
 std::string lwfsServer::data_dir = "";
@@ -41,7 +42,7 @@ int lwfsServer::Listdir(const operation &recv_msg)
         if (num % malloc_num == 0) {
             file_list = (file_info *)realloc(file_list, (num + malloc_num) * sizeof(file_info));
         }
-        stat(dirp->d_name, &file_list[num].file_stat);
+        lstat(dirp->d_name, &file_list[num].file_stat);
         strcpy(file_list[num].d_name, dirp->d_name);
         num++;
     }
@@ -99,7 +100,7 @@ int lwfsServer::Delete(const operation &recv_msg)
     std::string path;
     operation send_msg;
     PATHADAPT(path, recv_msg.file_path);
-    send_msg.ret =  remove(path.c_str());
+    send_msg.ret = remove(path.c_str());
     send_msg.opcode = DELETE;
     send_operation_msg(send_msg, ctrl_fd);
 
@@ -111,7 +112,8 @@ int lwfsServer::Getattr(const operation &recv_msg)
     std::string path;
     PATHADAPT(path, recv_msg.file_path);
     operation send_msg;
-    send_msg.ret = stat(path.c_str(), &send_msg.file_stat);
+    // lstat可以获取软链接信息，而stat不行
+    send_msg.ret = lstat(path.c_str(), &send_msg.file_stat);
     send_msg.opcode = GETATTR;
     send_operation_msg(send_msg, ctrl_fd);
 
@@ -239,10 +241,67 @@ int lwfsServer::Readlink(const operation &recv_msg)
     std::string path;
     operation send_msg;
     PATHADAPT(path, recv_msg.file_path);
-    send_msg.size = readlink(path.c_str(), send_msg.new_file_path, 255);
+    send_msg.size = readlink(path.c_str(), send_msg.new_file_path, recv_msg.size);
+    send_msg.opcode = READLINK;
     send_operation_msg(send_msg, ctrl_fd);
 
     return send_msg.size;
+}
+
+int lwfsServer::Setxattr(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+
+    send_msg.ret = setxattr(path.c_str(), recv_msg.xattr_key, recv_msg.xattr_value, recv_msg.size, recv_msg.mode);
+    send_msg.opcode = SETXATTR;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
+int lwfsServer::Getxattr(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+
+    printf("getattr path:%s key:%s size:%d\n", path.c_str(), recv_msg.xattr_key, recv_msg.size);
+
+    send_msg.size = getxattr(path.c_str(), recv_msg.xattr_key, send_msg.xattr_value, recv_msg.size);
+    send_msg.opcode = GETXATTR;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.size;
+}
+
+int lwfsServer::Listxattr(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+
+    char *list_buf = (char *)malloc(recv_msg.size);
+    send_msg.size = listxattr(path.c_str(), list_buf, recv_msg.size);
+    send_msg.opcode = LISTXATTR;
+    send_operation_msg(send_msg, ctrl_fd);
+    writen(ctrl_fd, list_buf, send_msg.size);
+
+    return send_msg.size;
+}
+
+int lwfsServer::Removexattr(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+
+    send_msg.ret = removexattr(path.c_str(), recv_msg.xattr_key);
+    send_msg.opcode = REMOVEXATTR;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
 }
 
 void *lwfsServer::handle_conn(void *args)
@@ -263,7 +322,7 @@ void *lwfsServer::handle_conn(void *args)
             int ret = op_table[recv_msg.opcode].func(recv_msg);
             if (ret < 0)
             {
-                printf("exec failed: %s\n", op_table[recv_msg.opcode].comments.c_str());
+                printf("exec failed: %s reason:%s\n", op_table[recv_msg.opcode].comments.c_str(), strerror(errno));
             }
         }
     }
@@ -290,6 +349,12 @@ int lwfsServer::Init()
     op_table[LINK] = {Link, "hardlink"};
     op_table[UNLINK] = {Unlink, "unlink"};
     op_table[READLINK] = {Readlink, "readlink"};
+    
+    // Getxattr时要去获取文件的security.selinux属性，我的ubuntu系统默认没有开启selinux，会报错，所以暂时注释
+    // op_table[SETXATTR] = {Setxattr, "setxattr"};
+    // op_table[GETXATTR] = {Getxattr, "getxattr"};
+    // op_table[LISTXATTR] = {Listxattr, "listxattr"};
+    // op_table[REMOVEXATTR] = {Removexattr, "removexattr"};
 }
 
 int lwfsServer::Run()

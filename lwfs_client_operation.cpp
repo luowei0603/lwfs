@@ -181,12 +181,75 @@ int lwfsClient::fuse_getattr(const char *path, struct stat *st)
 	recv_operation_msg(recv_msg, connfd_ctrl);
 
 	memcpy(st, &recv_msg.file_stat, sizeof(struct stat));
-	if (recv_msg.ret != 0)
+	
+	if (recv_msg.ret < 0)
 	{
 		return -2;
 	}
 
-	return 0;
+	return recv_msg.ret;
+}
+
+/** Set extended attributes */
+int lwfsClient::fuse_setxattr(const char *path, const char *key, const char *value, size_t size, int flag)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = SETXATTR;
+	strcpy(send_msg.xattr_key, key);
+	strcpy(send_msg.xattr_value, value);
+	send_msg.size = size;
+	send_msg.mode = flag;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+
+	return recv_msg.ret;
+}
+
+/** Get extended attributes */
+int lwfsClient::fuse_getxattr(const char *path, const char *key, char *value, size_t size)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = GETXATTR;
+	strcpy(send_msg.xattr_key, key);
+	send_msg.size = size;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	strcpy(value, recv_msg.xattr_value);
+
+	return recv_msg.ret;
+}
+
+/** List extended attributes */
+int lwfsClient::fuse_listxattr(const char *path, char *list, size_t size)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = LISTXATTR;
+	send_msg.size = size;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+	readn(connfd_ctrl, list, recv_msg.size);
+
+	return recv_msg.size;
+}
+
+/** Remove extended attributes */
+int lwfsClient::fuse_removexattr(const char *path, const char *key)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = REMOVEXATTR;
+	strcpy(send_msg.xattr_key, key);
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+
+	return recv_msg.ret;
 }
 
 int lwfsClient::fuse_symlink(const char * oldpath, const char * newpath)
@@ -199,20 +262,26 @@ int lwfsClient::fuse_symlink(const char * oldpath, const char * newpath)
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
 
-	return 0;
+	return recv_msg.ret;
 }
 
-int lwfsClient::fuse_readlink(const char * path, char * buf, size_t bufsize)
+// 这个地方有坑，linux posix接口readlink返回值是读出的buf长度，而fuse让成功时返回0
+int lwfsClient::fuse_readlink(const char * path, char *buf, size_t bufsize)
 {
 	operation send_msg;
 	strcpy(send_msg.file_path, path);
+	send_msg.size = bufsize;
+	
 	send_msg.opcode = READLINK;
 	send_operation_msg(send_msg, connfd_ctrl);
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
+	if (recv_msg.size < 0) {
+		return -1;
+	}
 	memcpy(buf, recv_msg.new_file_path, recv_msg.size);
 
-	return recv_msg.size;
+	return 0;
 }
 
 int lwfsClient::fuse_link(const char * oldpath, const char * newpath)
@@ -264,6 +333,10 @@ int lwfsClient::Init()
 	fuse_oper.symlink = fuse_symlink;
 	fuse_oper.link = fuse_link;
 	fuse_oper.readlink = fuse_readlink;
+	fuse_oper.getxattr = fuse_getxattr;
+	fuse_oper.setxattr = fuse_setxattr;
+	fuse_oper.listxattr = fuse_listxattr;
+	fuse_oper.removexattr = fuse_removexattr;
 }
 
 int lwfsClient::Run(int argc, char *argv[])
