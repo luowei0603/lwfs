@@ -10,7 +10,6 @@ class lwfsClient
 {
 public:
     static struct fuse_operations fuse_oper;
-    static std::map<std::string, int> file_fd;
     static int connfd_ctrl;
     static int connfd_data;
 
@@ -49,6 +48,9 @@ private:
     static int fuse_removexattr(const char *path, const char *key);
     static int fuse_chown(const char *path, uid_t uid, gid_t gid);
     static int fuse_utime(const char *path, struct utimbuf *time_stamp);
+    static int fuse_fsync(const char *path, int fd, struct fuse_file_info * fi);
+    static int fuse_release(const char *path, struct fuse_file_info * fi);   // 这个就是close函数
+    static int fuse_flush(const char *path, struct fuse_file_info * fi);  // 这个就是flush
 
 };
 #endif

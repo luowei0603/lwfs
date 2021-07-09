@@ -48,6 +48,7 @@ ssize_t writen(int fd, const void *vptr, size_t n)
 
 int send_operation_msg(operation &msg, int connfd)
 {
+	msg.magic = MAGIC;
 	writen(connfd, &msg, sizeof(operation));
 }
 int recv_operation_msg(operation &msg, int connfd)

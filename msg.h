@@ -20,11 +20,13 @@
 #include <map>
 #include <utime.h>
 
+#define MAGIC 25535
+
 enum type
 {
-    MKDIR = 0,
+    OPEN = 0,
     RENAME,
-    OPEN,
+    MKDIR,
     CLOSE,
     READ,
     WRITE,
@@ -52,13 +54,13 @@ enum type
 
 struct operation
 {
+    int magic;
     type opcode;
     long offset;
     long size;
     char file_path[255];
     char new_file_path[255];
     struct stat file_stat;
-    int fd;
     int mode;
     dev_t dev;
     int file_num;

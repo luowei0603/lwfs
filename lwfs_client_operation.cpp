@@ -3,7 +3,6 @@
 struct fuse_operations lwfsClient::fuse_oper;
 int lwfsClient::connfd_ctrl = 0;
 int lwfsClient::connfd_data = 0;
-std::map<std::string, int> lwfsClient::file_fd;
 
 int lwfsClient::fuse_open(const char *path, struct fuse_file_info *fi)
 {
@@ -13,10 +12,7 @@ int lwfsClient::fuse_open(const char *path, struct fuse_file_info *fi)
 	send_operation_msg(send_msg, connfd_ctrl);
 	operation recv_msg;
 	recv_operation_msg(recv_msg, connfd_ctrl);
-	int fd = recv_msg.fd;
-	std::string filename = std::string(path);
-	file_fd[filename] = fd;
-	return 0;
+	return (recv_msg.ret > 0 ? 0 : -1);
 }
 
 int lwfsClient::fuse_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
@@ -26,8 +22,6 @@ int lwfsClient::fuse_read(const char *path, char *buf, size_t size, off_t offset
 	send_msg.offset = offset;
 	send_msg.size = size;
 	send_msg.opcode = READ;
-	std::string filename = std::string(path);
-	send_msg.fd = file_fd[filename];
 	send_operation_msg(send_msg, connfd_data);
 	readn(connfd_data, buf, size);
 	return size;
@@ -40,13 +34,11 @@ int lwfsClient::fuse_write(const char *path, const char *buf, size_t size, off_t
 	send_msg.offset = offset;
 	send_msg.size = size;
 	send_msg.opcode = WRITE;
-	std::string filename = std::string(path);
-	send_msg.fd = file_fd[filename];
 	send_operation_msg(send_msg, connfd_data);
 	writen(connfd_data, buf, size);
 
 	operation recv_msg;
-	recv_operation_msg(recv_msg, connfd_ctrl);
+	recv_operation_msg(recv_msg, connfd_data);
 	return recv_msg.size;
 }
 
@@ -325,6 +317,24 @@ int lwfsClient::fuse_utime(const char *path, struct utimbuf *time_stamp)
 	return recv_msg.ret;
 }
 
+int lwfsClient::fuse_fsync(const char *path, int fd, struct fuse_file_info * fi)
+{
+	printf("fuse_fsync,path:%s fd:%d\n", path, fd);
+	return 0;
+}
+
+int lwfsClient::fuse_release(const char *path, struct fuse_file_info * fi)
+{
+	printf("fuse_release,path:%s\n", path);
+	return 0;
+}
+
+int lwfsClient::fuse_flush(const char *path, struct fuse_file_info * fi)
+{
+	printf("fuse_flush,path:%s\n", path);
+	return 0;
+}
+
 int lwfsClient::build_connection_with_server()
 {
 	char *servInetAddr = (char *)server_ip.c_str();
@@ -368,6 +378,10 @@ int lwfsClient::Init()
 	// fuse_oper.removexattr = fuse_removexattr;
 	fuse_oper.utime = fuse_utime;
 	fuse_oper.chown = fuse_chown;
+	fuse_oper.flush = fuse_flush;
+	fuse_oper.release = fuse_release;
+	fuse_oper.fsync = fuse_fsync;
+	
 }
 
 int lwfsClient::Run(int argc, char *argv[])
