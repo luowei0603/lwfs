@@ -47,5 +47,8 @@ private:
     static int fuse_getxattr(const char *path, const char *key, char *value, size_t size);
     static int fuse_listxattr(const char *path, char *list, size_t size);
     static int fuse_removexattr(const char *path, const char *key);
+    static int fuse_chown(const char *path, uid_t uid, gid_t gid);
+    static int fuse_utime(const char *path, struct utimbuf *time_stamp);
+
 };
 #endif

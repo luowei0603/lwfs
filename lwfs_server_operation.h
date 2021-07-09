@@ -58,6 +58,9 @@ public:
     static int Getxattr(const operation &recv_msg);
     static int Listxattr(const operation &recv_msg);
     static int Removexattr(const operation &recv_msg);
+    static int Chown(const operation &recv_msg);
+    static int Utime(const operation &recv_msg);
+    
     static void *handle_conn(void *args);
 };
 

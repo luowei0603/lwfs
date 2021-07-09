@@ -297,6 +297,34 @@ int lwfsClient::fuse_link(const char * oldpath, const char * newpath)
 	return recv_msg.ret;
 }
 
+int lwfsClient::fuse_chown(const char *path, uid_t uid, gid_t gid)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = CHOWN;
+	send_msg.uid = uid;
+	send_msg.gid = gid;
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+
+	return recv_msg.ret;
+
+}
+
+int lwfsClient::fuse_utime(const char *path, struct utimbuf *time_stamp)
+{
+	operation send_msg;
+	strcpy(send_msg.file_path, path);
+	send_msg.opcode = UTIME;
+	memcpy(&send_msg.time_stamp, time_stamp, sizeof(struct utimbuf));
+	send_operation_msg(send_msg, connfd_ctrl);
+	operation recv_msg;
+	recv_operation_msg(recv_msg, connfd_ctrl);
+
+	return recv_msg.ret;
+}
+
 int lwfsClient::build_connection_with_server()
 {
 	char *servInetAddr = (char *)server_ip.c_str();
@@ -333,10 +361,13 @@ int lwfsClient::Init()
 	fuse_oper.symlink = fuse_symlink;
 	fuse_oper.link = fuse_link;
 	fuse_oper.readlink = fuse_readlink;
-	fuse_oper.getxattr = fuse_getxattr;
-	fuse_oper.setxattr = fuse_setxattr;
-	fuse_oper.listxattr = fuse_listxattr;
-	fuse_oper.removexattr = fuse_removexattr;
+	// Getxattr时要去获取文件的security.selinux属性，我的ubuntu系统默认没有开启selinux，会报错，所以暂时注释
+	// fuse_oper.getxattr = fuse_getxattr;
+	// fuse_oper.setxattr = fuse_setxattr;
+	// fuse_oper.listxattr = fuse_listxattr;
+	// fuse_oper.removexattr = fuse_removexattr;
+	fuse_oper.utime = fuse_utime;
+	fuse_oper.chown = fuse_chown;
 }
 
 int lwfsClient::Run(int argc, char *argv[])

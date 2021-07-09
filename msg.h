@@ -18,6 +18,8 @@
 #include <dirent.h>
 #include <sys/statvfs.h>
 #include <map>
+#include <utime.h>
+
 enum type
 {
     MKDIR = 0,
@@ -43,6 +45,8 @@ enum type
     GETXATTR,
     LISTXATTR,
     REMOVEXATTR,
+    CHOWN,
+    UTIME,
     OP_NUM,
 };
 
@@ -60,6 +64,9 @@ struct operation
     int file_num;
     char xattr_key[255];
     char xattr_value[255];
+    uid_t uid;
+    gid_t gid;
+    struct utimbuf time_stamp;
     int ret;
 };
 

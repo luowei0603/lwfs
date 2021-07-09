@@ -304,6 +304,32 @@ int lwfsServer::Removexattr(const operation &recv_msg)
     return send_msg.ret;
 }
 
+int lwfsServer::Chown(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+
+    send_msg.ret = chown(path.c_str(), recv_msg.uid, recv_msg.gid);
+    send_msg.opcode = CHOWN;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
+int lwfsServer::Utime(const operation &recv_msg)
+{
+    std::string path;
+    operation send_msg;
+    PATHADAPT(path, recv_msg.file_path);
+
+    send_msg.ret = utime(path.c_str(), &recv_msg.time_stamp);
+    send_msg.opcode = UTIME;
+    send_operation_msg(send_msg, ctrl_fd);
+
+    return send_msg.ret;
+}
+
 void *lwfsServer::handle_conn(void *args)
 {
     int connfd = *(int *)args;
@@ -349,12 +375,13 @@ int lwfsServer::Init()
     op_table[LINK] = {Link, "hardlink"};
     op_table[UNLINK] = {Unlink, "unlink"};
     op_table[READLINK] = {Readlink, "readlink"};
-    
-    // Getxattr时要去获取文件的security.selinux属性，我的ubuntu系统默认没有开启selinux，会报错，所以暂时注释
-    // op_table[SETXATTR] = {Setxattr, "setxattr"};
-    // op_table[GETXATTR] = {Getxattr, "getxattr"};
-    // op_table[LISTXATTR] = {Listxattr, "listxattr"};
-    // op_table[REMOVEXATTR] = {Removexattr, "removexattr"};
+    op_table[UTIME] = {Readlink, "readlink"};
+    op_table[SETXATTR] = {Setxattr, "setxattr"};
+    op_table[GETXATTR] = {Getxattr, "getxattr"};
+    op_table[LISTXATTR] = {Listxattr, "listxattr"};
+    op_table[REMOVEXATTR] = {Removexattr, "removexattr"};
+    op_table[CHOWN] = {Chown, "chown"};
+    op_table[UTIME] = {Utime, "utime"};
 }
 
 int lwfsServer::Run()
